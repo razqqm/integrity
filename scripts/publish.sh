@@ -21,8 +21,9 @@
 #       --bundle 'dist/browser/main-XYZ.js|https://tg.ilia.ae/main-XYZ.js|main.js'
 #
 # The script must run inside a checkout of the integrity repo. It does NOT
-# touch the project's repo. It expects `git`, `jq`, and `shasum -a 256` to be
-# available.
+# touch the project's repo. It expects only POSIX tools (`git`, `shasum -a 256`,
+# `wc`, `awk`, `sed`, `date`) — no `jq`, no Python, so it works on minimal
+# server images out of the box.
 
 set -Eeuo pipefail
 
@@ -30,6 +31,16 @@ INTEGRITY_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$INTEGRITY_REPO_DIR"
 
 err() { echo "publish.sh: $*" >&2; exit 1; }
+
+# JSON-escape a string. Our inputs are short and free of control characters
+# (project name, sha, branch, ISO date, http URL, hex hash, file name), so
+# escaping backslash + double quote covers every value we ever pass in.
+json_str() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    printf '"%s"' "$s"
+}
 
 [ "${1:-}" ] || err "missing <project>"
 PROJECT="$1"; shift
@@ -55,6 +66,7 @@ PROJECT_DIR="projects/$PROJECT"
 HISTORY_DIR="$PROJECT_DIR/history"
 mkdir -p "$HISTORY_DIR"
 
+# ---- bundles array ----
 bundles_json="["
 for i in "${!BUNDLES[@]}"; do
     spec="${BUNDLES[$i]}"
@@ -63,43 +75,42 @@ for i in "${!BUNDLES[@]}"; do
     [ "$name" ] || name="$(basename "$path" | sed -E 's/-[A-Z0-9]+\.js$/.js/')"
     sha="$(shasum -a 256 "$path" | awk '{print $1}')"
     size="$(wc -c <"$path" | tr -d ' ')"
+
     [ "$i" -gt 0 ] && bundles_json+=","
-    bundles_json+=$(jq -n --arg name "$name" --arg url "$url" --arg sha "$sha" --argjson size "$size" \
-        '{
-            name: $name,
-            url: (if $url == "" then null else $url end),
-            sha256: $sha,
-            size: $size
-        } | with_entries(select(.value != null))')
+    bundles_json+=$'\n    {'
+    bundles_json+=$'\n      '"$(json_str name)"': '"$(json_str "$name")"
+    if [ -n "$url" ]; then
+        bundles_json+=','$'\n      '"$(json_str url)"': '"$(json_str "$url")"
+    fi
+    bundles_json+=','$'\n      '"$(json_str sha256)"': '"$(json_str "$sha")"
+    bundles_json+=','$'\n      '"$(json_str size)"': '"$size"
+    bundles_json+=$'\n    }'
 done
-bundles_json+="]"
+bundles_json+=$'\n  ]'
 
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-manifest=$(jq -n \
-    --arg project "$PROJECT" \
-    --arg commit "$COMMIT" \
-    --arg commit_full "$COMMIT_FULL" \
-    --arg branch "$BRANCH" \
-    --arg built_at "$now" \
-    --arg published_at "$now" \
-    --arg source_vis "$SOURCE_VIS" \
-    --arg source_url "$SOURCE_URL" \
-    --argjson bundles "$bundles_json" \
-    '{
-        project: $project,
-        commit: $commit,
-        commitFull: (if $commit_full == "" then null else $commit_full end),
-        branch: (if $branch == "" then null else $branch end),
-        builtAt: $built_at,
-        publishedAt: $published_at,
-        bundles: $bundles,
-        sourceRepoVisibility: $source_vis,
-        publicSourceUrl: (if $source_url == "" then null else $source_url end)
-    } | with_entries(select(.value != null))')
+# ---- manifest object ----
+manifest='{'
+manifest+=$'\n  '"$(json_str project)"': '"$(json_str "$PROJECT")"','
+manifest+=$'\n  '"$(json_str commit)"': '"$(json_str "$COMMIT")"','
+if [ -n "$COMMIT_FULL" ]; then
+    manifest+=$'\n  '"$(json_str commitFull)"': '"$(json_str "$COMMIT_FULL")"','
+fi
+if [ -n "$BRANCH" ]; then
+    manifest+=$'\n  '"$(json_str branch)"': '"$(json_str "$BRANCH")"','
+fi
+manifest+=$'\n  '"$(json_str builtAt)"': '"$(json_str "$now")"','
+manifest+=$'\n  '"$(json_str publishedAt)"': '"$(json_str "$now")"','
+manifest+=$'\n  '"$(json_str bundles)"': '"$bundles_json"','
+manifest+=$'\n  '"$(json_str sourceRepoVisibility)"': '"$(json_str "$SOURCE_VIS")"
+if [ -n "$SOURCE_URL" ]; then
+    manifest+=','$'\n  '"$(json_str publicSourceUrl)"': '"$(json_str "$SOURCE_URL")"
+fi
+manifest+=$'\n}'
 
-echo "$manifest" >"$PROJECT_DIR/manifest.json"
-echo "$manifest" >"$HISTORY_DIR/$COMMIT.json"
+printf '%s\n' "$manifest" >"$PROJECT_DIR/manifest.json"
+printf '%s\n' "$manifest" >"$HISTORY_DIR/$COMMIT.json"
 
 git add "$PROJECT_DIR"
 if git diff --cached --quiet; then
