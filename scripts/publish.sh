@@ -117,6 +117,10 @@ if git diff --cached --quiet; then
     echo "publish.sh: no changes — manifest already up to date"
     exit 0
 fi
-git commit -m "$PROJECT: publish $COMMIT"
+# Set identity inline — no filesystem writes, no $HOME dependency, works under
+# server users (root, www-data, …) that have no global git config.
+git -c user.email='deploy@razqqm-integrity.local' \
+    -c user.name='razqqm-integrity-bot' \
+    commit -m "$PROJECT: publish $COMMIT"
 git push
 echo "publish.sh: published manifest for $PROJECT @ $COMMIT"
