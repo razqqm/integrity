@@ -8,15 +8,17 @@
 # Usage:
 #   publish.sh <project> --commit <short-sha> [--commit-full <full-sha>] \
 #       [--branch <branch>] [--source-public-url <url>] \
-#       --bundle <local-path>[:<public-url>][:<logical-name>] \
+#       --bundle <local-path>[|<public-url>][|<logical-name>] \
 #       [--bundle ...]                # repeat for additional artifacts
+#
+# The bundle spec uses `|` as separator so URLs containing `:` parse correctly.
 #
 # Example:
 #   ./publish.sh tg.ilia.ae \
 #       --commit 1bf2ac5 \
 #       --commit-full 1bf2ac5bcc... \
 #       --branch main \
-#       --bundle dist/browser/main-XYZ.js:https://tg.ilia.ae/main-XYZ.js:main.js
+#       --bundle 'dist/browser/main-XYZ.js|https://tg.ilia.ae/main-XYZ.js|main.js'
 #
 # The script must run inside a checkout of the integrity repo. It does NOT
 # touch the project's repo. It expects `git`, `jq`, and `shasum -a 256` to be
@@ -56,14 +58,19 @@ mkdir -p "$HISTORY_DIR"
 bundles_json="["
 for i in "${!BUNDLES[@]}"; do
     spec="${BUNDLES[$i]}"
-    IFS=':' read -r path url name <<<"$spec"
+    IFS='|' read -r path url name <<<"$spec"
     [ -f "$path" ] || err "bundle file not found: $path"
     [ "$name" ] || name="$(basename "$path" | sed -E 's/-[A-Z0-9]+\.js$/.js/')"
     sha="$(shasum -a 256 "$path" | awk '{print $1}')"
     size="$(wc -c <"$path" | tr -d ' ')"
     [ "$i" -gt 0 ] && bundles_json+=","
     bundles_json+=$(jq -n --arg name "$name" --arg url "$url" --arg sha "$sha" --argjson size "$size" \
-        '{name: $name, url: ($url|select(.!="")), sha256: $sha, size: $size} | with_entries(select(.value != null))')
+        '{
+            name: $name,
+            url: (if $url == "" then null else $url end),
+            sha256: $sha,
+            size: $size
+        } | with_entries(select(.value != null))')
 done
 bundles_json+="]"
 
@@ -82,13 +89,13 @@ manifest=$(jq -n \
     '{
         project: $project,
         commit: $commit,
-        commitFull: ($commit_full|select(.!="")),
-        branch: ($branch|select(.!="")),
+        commitFull: (if $commit_full == "" then null else $commit_full end),
+        branch: (if $branch == "" then null else $branch end),
         builtAt: $built_at,
         publishedAt: $published_at,
         bundles: $bundles,
         sourceRepoVisibility: $source_vis,
-        publicSourceUrl: ($source_url|select(.!=""))
+        publicSourceUrl: (if $source_url == "" then null else $source_url end)
     } | with_entries(select(.value != null))')
 
 echo "$manifest" >"$PROJECT_DIR/manifest.json"

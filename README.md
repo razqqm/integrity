@@ -102,9 +102,12 @@ A reference helper script lives at [`scripts/publish.sh`](./scripts/publish.sh):
 ./scripts/publish.sh tg.ilia.ae \
     --commit 1bf2ac5 \
     --commit-full 1bf2ac5...  \
-    --bundle dist/browser/main-XYZ.js \
-    --bundle-url https://tg.ilia.ae/main-XYZ.js
+    --branch main \
+    --bundle 'dist/browser/main-XYZ.js|https://tg.ilia.ae/main-XYZ.js|main.js'
 ```
+
+The `--bundle` spec is `<local-path>|<public-url>|<logical-name>`, separated
+by `|` so URLs containing `:` parse cleanly.
 
 ## Trust model — what this gives you, what it does not
 
