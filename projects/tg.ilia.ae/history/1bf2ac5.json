@@ -1,0 +1,17 @@
+{
+  "project": "tg.ilia.ae",
+  "commit": "1bf2ac5",
+  "commitFull": "1bf2ac51fdaee5db8ddedb6e21c6c9d10e4a0000",
+  "branch": "main",
+  "builtAt": "2026-04-30T18:38:00Z",
+  "publishedAt": "2026-04-30T18:42:00Z",
+  "bundles": [
+    {
+      "name": "main.js",
+      "sha256": "48fcf496a5ad4830c1056a0facc12a8b2416dd6034243259906bc7536c6cdd32",
+      "size": 251667
+    }
+  ],
+  "sourceRepoVisibility": "private",
+  "publicSourceUrl": null
+}
