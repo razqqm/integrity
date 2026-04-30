@@ -3,12 +3,12 @@
   "commit": "aed5ee1",
   "commitFull": "aed5ee1e01d5faef41af07a15c2b6b9c58314d85",
   "branch": "main",
-  "builtAt": "2026-04-30T19:03:38Z",
-  "publishedAt": "2026-04-30T19:03:38Z",
+  "builtAt": "2026-04-30T19:05:02Z",
+  "publishedAt": "2026-04-30T19:05:02Z",
   "bundles": [
     {
-      "name": "//tg.ilia.ae/main-WANBDRJB.js:main.js",
-      "url": "https",
+      "name": "main.js",
+      "url": "https://tg.ilia.ae/main-WANBDRJB.js",
       "sha256": "0cf40806dfe19689f70b00414e5c789d05525ad563788764e0ab798223bd3ed1",
       "size": 243758
     }
